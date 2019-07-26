@@ -1,40 +1,66 @@
-var cheerio = require("cheerio");
-var axios = require("axios");
+// Dependencies
+var express = require("express");
+var mongojs = require("mongojs");
+var exphbs = require("express-handlebars");
+var routes = require("./routes")
 
 
-console.log("\n***********************************\n" +
-            "Grabbing every story about Florida Man\n" +
-            "from floridaman.com :" +
-            "\n***********************************\n");
+var app = express();
 
 
-axios.get("https://floridaman.com/").then(function(response) {
+var PORT = process.env.PORT || 3300
 
- 
-  var $ = cheerio.load(response.data);
+app.engine("handlebars", exphbs({defaultLayout: "main"}));
+app.set("view engine", "handlebars");
 
-  
-  var results = [];
+// Parse request body as JSON
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+// Make public a static folder
+app.use(express.static("public"));
 
-  
-  $("article.entry-tpl-grid").each(function(i, element) {
+// Database configuration
+var databaseUrl = "";
+var collections = [""];
 
-    
-    var article = $(element).find("h3").text();
+// Hook mongojs config to db variable
+var db = mongojs(databaseUrl, collections);
 
-    var link = $(element).find("a").attr("href");
-  
-    var imgLink = $(element).find("a").find("img").attr("data-srcset").split(",")[0].split(" ")[0];
+// Log any mongojs errors to console
+db.on("error", function(error) {
+  console.log("Database Error:", error);
+});
+
+// Routes
+// ======
+app.use(routes)
 
 
-   
-    results.push({
-      article: article,
-      link: link,
-      imgLink: imgLink
-    });
+// Simple index route
+app.get("/", function(req, res) {
+  res.sendFile(path.join(__dirname + "./public/index.html"));
+});
+
+// Handle form submission, save submission to mongo
+app.post("/submit", function(req, res) {
+  console.log(req.body);
+  // Insert the note into the notes collection
+  db.notes.insert(req.body, function(error, saved) {
+    // Log any errors
+    if (error) {
+      console.log(error);
+    }
+    else {
+      // Otherwise, send the note back to the browser
+      // This will fire off the success function of the ajax request
+      res.send(saved);
+    }
   });
+});
 
-  // Log the results once you've looped through each of the elements found with cheerio
-  console.log(results);
+
+
+// Listen on port 3000
+app.listen(3000, function() {
+  console.log("App running on port 3000!");
 });
